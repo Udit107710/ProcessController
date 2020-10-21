@@ -1,0 +1,19 @@
+version: '3'
+services:
+    redis:
+        image: redis:6.0.8-alpine
+    postgres:
+        image: postgres:13-alpine
+        environment:
+            POSTGRES_PASSWORD: somepassword@1234
+            POSTGRES_USER: process_app
+    django:
+        build: .
+        command: python process_bender/manage.py runserver 0.0.0.0:8000 && celery -A process_bender worker -l INFO
+        volumes:
+            - .:/code
+        depends_on:
+            - postgres
+            - redis
+        ports:
+            - "8000:8000"
