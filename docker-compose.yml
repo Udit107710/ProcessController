@@ -9,7 +9,7 @@ services:
             POSTGRES_USER: process_app
     django:
         build: .
-        command: python process_bender/manage.py runserver 0.0.0.0:8000 && celery -A process_bender worker -l INFO
+        command: python process_bender/manage.py runserver 0.0.0.0:8000
         volumes:
             - .:/code
         depends_on:
