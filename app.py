@@ -40,47 +40,25 @@ celery.setup_security()
 def hello():
     return 'Hello, World!'
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/test', methods=['GET', 'POST'])
+@app.route('/test', methods=['POST'])
 def upload_file():
     if request.method == 'POST':
         if 'file_' not in request.files:
-            flash('No file_ part')
-            return redirect(request.url)
+            return jsonify({'message': 'Missing data'}), 406
         file_ = request.files['file_']
         if file_.filename == '':
-            flash('No selected file_')
-            return redirect(request.url)
-        if file_ and allowed_file(file_.filename):
-            filename = secure_filename(file_.filename)
-            file_.stream.seek(0)
-            data = {
-                'stream': base64.b64encode(file_.read()),
-                'filename': file_.filename,
-                'content_type': file_.content_type,
-            }
-            print(type(file_.read()))
-            print(type(base64.b64encode(file_.read())))
-            print(type(data))
-            task = resumable_executor.delay(data=data, base=temp_base)
-            print(task.id)
-            return jsonify({}), 202, {'Location': url_for('taskstatus',
+            return jsonify({'message': 'Missing data'}), 406
+        filename = secure_filename(file_.filename)
+        file_.stream.seek(0)
+        data = {
+            'stream': base64.b64encode(file_.read()),
+            'filename': file_.filename,
+            'content_type': file_.content_type,
+        }
+        task = resumable_executor.delay(data=data, base=temp_base)
+        return jsonify({}), 202, {'Location': url_for('taskstatus',
                                                   task_id=task.id)}
 
-@app.route('/api/upload/', methods=['POST'])
-def resumable_post():
-    if 'file_' not in request.files:
-        return redirect(request.url)
-    file_ = request.files['file_']
-    if file_.filename == '':
-        return redirect(request.url)
-    filename = secure_filename(file_.filename)
-    task = resumable_executor.delay(file_, filename, temp_base)
-    return jsonify({}), 202, {'Location': url_for('taskstatus',
-                                                  task_id=task.id)}
 @app.route('/api/status/<task_id>', methods=['GET'])
 def taskstatus(task_id):
     task = resumable_executor.AsyncResult(task_id)
@@ -113,9 +91,11 @@ def taskstatus(task_id):
 def taskaction(task_id, action):
     if action == 'stop':
         app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+        # Delete the saved content
     elif action == 'pause':
         app.control.revoke(task_id, terminate=True, signal='SIGKILL')
     elif action == 'resume':
+        # Get the saved state from db and resume the file saving process
         pass
 
 @celery.task(bind=True, trail=True, track_started=True)
